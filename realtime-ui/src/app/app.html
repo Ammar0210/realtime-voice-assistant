@@ -19,11 +19,16 @@
       <h3>Controls</h3>
 
       <label class="label">Input device</label>
-      <select class="select" [(ngModel)]="selectedDeviceId" [disabled]="connected">
+      <select class="select"
+              [(ngModel)]="selectedDeviceId"
+              [disabled]="connected || devicesLoading || !devicesReady">
+        <option *ngIf="devicesLoading" [value]="''">Loading devices…</option>
+
         <option *ngFor="let d of devices" [value]="d.deviceId">
           {{ d.label || '(device)' }}
         </option>
       </select>
+
 
       <div class="row">
         <button class="btn primary" (click)="start()" [disabled]="connected">
