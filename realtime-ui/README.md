@@ -1,104 +1,59 @@
-# 🎙️ Realtime Voice Assistant
-**Angular + Spring Boot + OpenAI Realtime API**
+# RealtimeUi
 
-A local demo application that provides:
+This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.1.4.
 
-- ✅ Live microphone transcription (Whisper)
-- ✅ Real-time assistant text responses
-- ✅ Angular frontend UI
-- ✅ Spring Boot backend for secure token generation
-- ✅ No API keys exposed to the browser
+## Development server
 
----
+To start a local development server, run:
 
-## 📌 Project Structure
+```bash
+ng serve
+```
 
-realtime-backend/
-│
-├── realtime-backend/ # Spring Boot backend
-│ └── src/main/java/... # Token + session API
-│
-├── realtime-ui/ # Angular frontend UI
-│ └── src/app/... # WebRTC + Transcript UI
-│
-└── README.md
----
+Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
 
-## ⚙️ Architecture Overview
-Angular UI (localhost:4200)
-↓
-Spring Boot Backend (localhost:8080)
-↓ (creates ephemeral client_secret)
-OpenAI Realtime API (WebRTC streaming)
+## Code scaffolding
 
-✔️ OpenAI API key stays **server-side only**  
-✔️ Browser receives only short-lived ephemeral tokens
+Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
 
----
+```bash
+ng generate component component-name
+```
 
-## ✅ Requirements
+For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
 
-Make sure you have:
+```bash
+ng generate --help
+```
 
-- Java 17+ (recommended: Java 21)
-- Node.js LTS (v20+)
-- Git
-- OpenAI API Key with Realtime access
+## Building
 
----
+To build the project run:
 
-## 🔑 Environment Variable Setup
+```bash
+ng build
+```
 
-### ⚠️ Never hardcode your API key in code.
+This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
 
-Set it as an environment variable:
+## Running unit tests
 
-### Windows PowerShell
+To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
 
-``$env:OPENAI_API_KEY="sk-proj-xxxxxxxxxxxxxxxx"``
+```bash
+ng test
+```
 
----
+## Running end-to-end tests
 
-## ▶️ Run Backend (Spring Boot)
+For end-to-end (e2e) testing, run:
 
-From repo root:
-- cd realtime-backend
-- ./gradlew bootRun
+```bash
+ng e2e
+```
 
-Backend runs at: `http://localhost:8080`
+Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
 
-Test token endpoint: `http://localhost:8080/api/realtime-token`
+## Additional Resources
 
----
-
-## ▶️ Run Frontend (Angular)
-
-From repo root:
-- cd realtime-ui
-- npm install
-- npm start
-
-Frontend runs at: `http://localhost:4200`
-
----
-
-## 🎤 How to Use
-
-Start Spring Boot backend
-
-Start Angular frontend
-
-Open UI in browser
-
-Select microphone or Line-In device
-
-Click Start
-
-Speak → pause → transcript appears → assistant responds
-
----
-
-## 🧠 Prompt / Context Customization
-
-System context lives in:
-`realtime-ui/src/app/prompt.ts`
+For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
