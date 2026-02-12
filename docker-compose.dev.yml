@@ -1,0 +1,33 @@
+# Development override — hot reload for both frontend and backend
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8080:8080"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CORS_ALLOWED-ORIGINS=http://localhost:4200,http://ui
+    volumes:
+      - ./src:/app/src
+      - ./build.gradle:/app/build.gradle
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/realtime-token"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+
+  ui:
+    build:
+      context: ./realtime-ui
+      dockerfile: Dockerfile.dev
+    ports:
+      - "4200:4200"
+    volumes:
+      - ./realtime-ui/src:/app/src
+    depends_on:
+      - backend
+

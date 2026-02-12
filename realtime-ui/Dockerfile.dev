@@ -1,0 +1,14 @@
+# Dev image — runs ng serve with live reload
+FROM node:20-alpine
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+
+EXPOSE 4200
+# --host 0.0.0.0 so it's reachable from outside the container
+# --poll 2000 for file-change detection on mounted volumes
+CMD ["npx", "ng", "serve", "--host", "0.0.0.0", "--poll", "2000", "--proxy-config", "proxy.conf.docker.json"]
+

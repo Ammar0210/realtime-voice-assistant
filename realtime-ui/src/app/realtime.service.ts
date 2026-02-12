@@ -23,7 +23,6 @@ export type RtState =
 
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
-import { SYSTEM_PROMPT } from './prompt';
 
 export type ChatMsg = {
   role: 'user' | 'assistant';
@@ -58,7 +57,7 @@ export class RealtimeService {
     this.pushDebug?.('state', `${s}${note ? ' | ' + note : ''}`);
   }
 
-  async connect(deviceId?: string, vad?: VadSettings) {
+  async connect(deviceId?: string, vad?: VadSettings, systemPrompt?: string) {
     this.setState('connecting');
     this.lastDeviceId = deviceId;
     this.pushDebug('client.connect', `deviceId=${deviceId || 'default'}`);
@@ -71,7 +70,7 @@ export class RealtimeService {
       params.set('silenceDurationMs', String(vad.silenceDurationMs));
     }
 
-    const url = `http://localhost:8080/api/realtime-token${params.toString() ? '?' + params.toString() : ''}`;
+    const url = `/api/realtime-token${params.toString() ? '?' + params.toString() : ''}`;
 
     const session = await fetch(url).then(r => r.json());
     this.pushDebug('token.ok');
@@ -153,7 +152,7 @@ export class RealtimeService {
     // Optional: override instructions
     this.sendEvent({
       type: 'session.update',
-      session: { instructions: SYSTEM_PROMPT }
+      session: { instructions: systemPrompt || 'You are a helpful assistant.' }
     });
 
     // ✅ Ready to listen

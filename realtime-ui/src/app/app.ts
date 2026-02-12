@@ -17,9 +17,8 @@ export class App implements OnInit, AfterViewInit {
   @ViewChild('chatBody') chatBody?: ElementRef<HTMLDivElement>;
   private sub?: Subscription;
   devices: MediaDeviceInfo[] = [];
-  systemPrompt =
-    "Reply in a natural, human-like tone. Add brief pauses using '…' occasionally (not every sentence). " +
-    "Avoid sounding robotic. Keep answers concise unless I ask for more detail.";
+  resumeText = '';
+  systemPrompt = '';
   selectedDeviceId?: string;
   connected = false;
   devicesLoading = false;
@@ -78,8 +77,15 @@ export class App implements OnInit, AfterViewInit {
     this.cdr.detectChanges();
   }
 
+  buildPrompt(): string {
+    const prompt = this.systemPrompt.trim() ||
+      'You are a helpful assistant. Respond in a natural, human-like tone.';
+    if (!this.resumeText.trim()) return prompt;
+    return `${prompt}\n\nRESUME:\n${this.resumeText.trim()}`;
+  }
+
   async start() {
-    await this.rt.connect(this.selectedDeviceId, this.vad);
+    await this.rt.connect(this.selectedDeviceId, this.vad, this.buildPrompt());
     this.connected = true;
   }
 

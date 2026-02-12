@@ -103,6 +103,7 @@ body {
   grid-template-columns: 320px 1fr;
   gap: 14px;
   margin-top: 14px;
+  align-items: start;
 }
 
 .panel {
@@ -185,8 +186,15 @@ body {
   color: var(--muted2);
 }
 
+.panel.chat {
+  display: flex;
+  flex-direction: column;
+}
+
 .chatBody {
-  height: 520px;
+  flex: 1;
+  min-height: 300px;
+  max-height: 520px;
   overflow: auto;
   border-radius: 14px;
   border: 1px solid var(--border);
@@ -253,7 +261,7 @@ body {
 
 @media (max-width: 980px) {
   .grid { grid-template-columns: 1fr; }
-  .chatBody { height: 420px; }
+  .chatBody { max-height: 420px; }
 }
 /* You can add global styles to this file, and also import other style files */
 
@@ -298,3 +306,19 @@ body {
 .subhead { margin: 0 0 10px; font-size: 14px; opacity: 0.9; }
 .range { width: 100%; }
 .input { width: 100%; padding: 8px; border-radius: 10px; }
+
+.textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(0,0,0,0.20);
+  color: var(--text);
+  outline: none;
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+  margin-bottom: 8px;
+}
+.textarea:disabled { opacity: 0.6; }
+.textarea::placeholder { color: var(--muted); }
