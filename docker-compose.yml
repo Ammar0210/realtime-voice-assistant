@@ -1,0 +1,16 @@
+services:
+  backend:
+    build:
+      context: ./realtime-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+
+  ui:
+    build:
+      context: ./realtime-ui
+    ports:
+      - "4200:80"
+    depends_on:
+      - backend
