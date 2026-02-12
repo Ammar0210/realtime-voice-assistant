@@ -39,6 +39,48 @@
         </button>
       </div>
 
+      <div class="row" style="gap:8px; margin-top:12px;">
+        <button class="btn" (click)="showDebug = !showDebug">
+          {{ showDebug ? 'Hide Debug' : 'Show Debug' }}
+        </button>
+
+        <button class="btn" (click)="toggleDebugEnabled()">
+          Debug: {{ debugEnabled ? 'On' : 'Off' }}
+        </button>
+
+        <ng-container *ngIf="debug$ | async as debug">
+          <button class="btn" (click)="clearDebug()" [disabled]="!debug.length">
+            Clear
+          </button>
+        </ng-container>
+      </div>
+
+      <div class="panel debug" *ngIf="showDebug">
+        <ng-container *ngIf="debug$ | async as debug">
+          <div class="debugHeader">
+            <div><b>Realtime Events</b></div>
+
+            <button class="btn small"
+                    (click)="copyDebug(debug)"
+                    [disabled]="!debug.length">
+              Copy
+            </button>
+          </div>
+
+          <div class="debugBody">
+            <div class="debugRow" *ngFor="let e of debug">
+              <span class="t">{{ e.ts | date:'HH:mm:ss.SSS' }}</span>
+              <span class="k">{{ e.type }}</span>
+              <span class="v">{{ e.summary }}</span>
+            </div>
+
+            <div class="empty" *ngIf="debug.length === 0">
+              No events yet.
+            </div>
+          </div>
+        </ng-container>
+      </div>
+
       <div class="hint">
         Tip: enable <b>Line In</b> as an input device in Windows Sound settings to select it here.
       </div>

@@ -256,3 +256,31 @@ body {
   .chatBody { height: 420px; }
 }
 /* You can add global styles to this file, and also import other style files */
+
+.panel.debug { margin-top: 12px; }
+.debugHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.debugBody {
+  max-height: 220px;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 10px;
+  padding: 8px;
+}
+.debugRow {
+  display: grid;
+  grid-template-columns: 110px 1fr 1.5fr;
+  gap: 10px;
+  padding: 2px 0;
+  opacity: 0.95;
+}
+.debugRow .t { opacity: 0.75; }
+.debugRow .k { color: #93c5fd; } /* light blue */
+.debugRow .v { opacity: 0.9; }
+.btn.small { padding: 6px 10px; font-size: 12px; }

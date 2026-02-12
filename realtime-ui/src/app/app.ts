@@ -17,14 +17,15 @@ export class App implements OnInit, AfterViewInit {
   @ViewChild('chatBody') chatBody?: ElementRef<HTMLDivElement>;
   private sub?: Subscription;
   devices: MediaDeviceInfo[] = [];
+  systemPrompt =
+    "Reply in a natural, human-like tone. Add brief pauses using '…' occasionally (not every sentence). " +
+    "Avoid sounding robotic. Keep answers concise unless I ask for more detail.";
   selectedDeviceId?: string;
   connected = false;
   devicesLoading = false;
   devicesReady = false;
-
-  systemPrompt =
-    "Reply in a natural, human-like tone. Add brief pauses using '…' occasionally (not every sentence). " +
-    "Avoid sounding robotic. Keep answers concise unless I ask for more detail.";
+  showDebug = false;
+  debugEnabled = true;
 
   constructor(private rt: RealtimeService, private cdr: ChangeDetectorRef) {}
 
@@ -85,6 +86,27 @@ export class App implements OnInit, AfterViewInit {
   stop() {
     this.rt.disconnect();
     this.connected = false;
+  }
+
+  get debug$() {
+    return this.rt.debug$;
+  }
+
+  toggleDebugEnabled() {
+    this.debugEnabled = !this.debugEnabled;
+    this.rt.setDebugEnabled(this.debugEnabled);
+  }
+
+  clearDebug() {
+    this.rt.clearDebug();
+  }
+
+  async copyDebug(events: any[]) {
+    const text = events
+      .map((e: any) => `${new Date(e.ts).toLocaleTimeString()} | ${e.type}${e.summary ? ' | ' + e.summary : ''}`)
+      .join('\n');
+
+    await navigator.clipboard.writeText(text);
   }
 
 }

@@ -1,3 +1,10 @@
+export type DebugEvent = {
+  ts: number;          // epoch ms
+  type: string;        // evt.type or local label
+  summary?: string;    // small readable info
+  raw?: any;           // optional raw object (keep off by default if you want)
+};
+
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { SYSTEM_PROMPT } from './prompt';
@@ -18,11 +25,18 @@ export class RealtimeService {
   private assistantInProgress = false;
   private lastDeviceId?: string;
   private reconnecting = false;
+  private debugEnabled = true; // you can toggle from UI later
+  private debugSubject = new BehaviorSubject<DebugEvent[]>([]);
+  debug$ = this.debugSubject.asObservable();
 
   async connect(deviceId?: string) {
     this.lastDeviceId = deviceId;
+    this.pushDebug('client.connect', `deviceId=${deviceId || 'default'}`);
+
     // 1) Get ephemeral client secret from Spring Boot
     const session = await fetch('http://localhost:8080/api/realtime-token').then(r => r.json());
+    this.pushDebug('token.ok');
+
     const clientSecret: string | undefined = session?.client_secret?.value;
     if (!clientSecret) throw new Error('No client_secret returned from backend');
 
@@ -30,11 +44,14 @@ export class RealtimeService {
     this.localStream = await navigator.mediaDevices.getUserMedia({
       audio: deviceId ? { deviceId: { exact: deviceId } } : true
     });
+    const tracks = this.localStream.getAudioTracks();
+    this.pushDebug('audio.ok', `tracks=${tracks.length} label=${tracks[0]?.label || ''}`);
 
     // 3) WebRTC setup
     this.pc = new RTCPeerConnection();
 
     this.pc.oniceconnectionstatechange = () => {
+      this.pushDebug('pc.ice', `${this.pc?.iceConnectionState}`);
       const st = this.pc?.iceConnectionState;
       console.log('ICE state:', st);
 
@@ -44,6 +61,7 @@ export class RealtimeService {
     };
 
     this.pc.onconnectionstatechange = () => {
+      this.pushDebug('pc.state', `${this.pc?.connectionState}`);
       const st = this.pc?.connectionState;
       console.log('PC state:', st);
 
@@ -109,6 +127,8 @@ export class RealtimeService {
     if (clearMessages) {
       this.messagesSubject.next([]);
     }
+
+    this.pushDebug('client.disconnect', `clearMessages=${clearMessages}`);
   }
 
   private sendEvent(evt: any) {
@@ -159,6 +179,38 @@ export class RealtimeService {
   private onServerEvent(raw: string) {
     let evt: any;
     try { evt = JSON.parse(raw); } catch { return; }
+
+    // Small summaries for the events you care about
+    switch (evt.type) {
+      case 'input_audio_buffer.speech_started':
+        this.pushDebug(evt.type);
+        break;
+
+      case 'conversation.item.input_audio_transcription.delta':
+        this.pushDebug(evt.type, `+${(evt.delta || '').length} chars`);
+        break;
+
+      case 'conversation.item.input_audio_transcription.completed':
+        this.pushDebug(evt.type, `${(evt.transcript || '').length} chars`);
+        break;
+
+      case 'response.text.delta':
+        this.pushDebug(evt.type, `+${(evt.delta || '').length} chars`);
+        break;
+
+      case 'response.text.done':
+        this.pushDebug(evt.type, `${this.assistantDraft.length} chars`);
+        break;
+
+      case 'error':
+        this.pushDebug('error', evt.error?.message || 'unknown', evt.error);
+        break;
+
+      default:
+        // optionally log everything (can be noisy)
+        // this.pushDebug(evt.type);
+        break;
+    }
 
     // ✅ NEW: Reset draft at the start of a new speech segment
     // (This event is emitted when server VAD detects speech.)
@@ -297,5 +349,23 @@ export class RealtimeService {
     this.reconnecting = false;
   }
 
+  private pushDebug(type: string, summary?: string, raw?: any) {
+    if (!this.debugEnabled) return;
+
+    const list = this.debugSubject.value.slice();
+    list.push({ ts: Date.now(), type, summary, raw });
+
+    // keep last 200
+    const trimmed = list.length > 200 ? list.slice(list.length - 200) : list;
+    this.debugSubject.next(trimmed);
+  }
+
+  clearDebug() {
+    this.debugSubject.next([]);
+  }
+
+  setDebugEnabled(enabled: boolean) {
+    this.debugEnabled = enabled;
+  }
 
 }
