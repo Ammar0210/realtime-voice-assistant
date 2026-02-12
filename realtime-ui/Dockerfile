@@ -10,7 +10,7 @@ RUN npm run build
 
 # -------- Serve stage --------
 FROM nginx:alpine
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=build /app/dist/realtime-ui/browser /usr/share/nginx/html
 
 # Nginx config to support SPA routes + proxy /api to backend
 COPY nginx.conf /etc/nginx/conf.d/default.conf
