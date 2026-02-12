@@ -96,6 +96,33 @@ export class RealtimeService {
     this.dc.send(JSON.stringify(evt));
   }
 
+  private upsertDraft(role: ChatMsg['role'], text: string) {
+    const list = this.messagesSubject.value.slice();
+    const last = list[list.length - 1];
+
+    if (last && last.role === role && last.text.startsWith('[draft]')) {
+      list[list.length - 1] = { role, text: `[draft]${text}` };
+    } else {
+      list.push({ role, text: `[draft]${text}` });
+    }
+
+    this.messagesSubject.next(list);
+  }
+
+  private finalizeDraft(role: ChatMsg['role'], finalText: string) {
+    const list = this.messagesSubject.value.slice();
+
+    // remove any trailing draft of same role
+    const last = list[list.length - 1];
+    if (last && last.role === role && last.text.startsWith('[draft]')) {
+      list[list.length - 1] = { role, text: finalText };
+    } else {
+      list.push({ role, text: finalText });
+    }
+
+    this.messagesSubject.next(list);
+  }
+
   private upsert(role: ChatMsg['role'], text: string) {
     const list = this.messagesSubject.value.slice();
     for (let i = list.length - 1; i >= 0; i--) {
@@ -113,32 +140,32 @@ export class RealtimeService {
     let evt: any;
     try { evt = JSON.parse(raw); } catch { return; }
 
-    // USER transcript streaming
     if (evt.type === 'conversation.item.input_audio_transcription.delta') {
       this.userDraft += (evt.delta || '');
-      this.upsert('user', this.userDraft);
+      this.upsertDraft('user', this.userDraft);
       return;
     }
 
-    // USER transcript final -> trigger assistant response
     if (evt.type === 'conversation.item.input_audio_transcription.completed') {
       this.userDraft = evt.transcript || this.userDraft;
-      this.upsert('user', this.userDraft);
+      this.finalizeDraft('user', this.userDraft);
 
       this.assistantDraft = '';
       this.sendEvent({ type: 'response.create', response: { modalities: ['text'] } });
       return;
     }
 
-    // ASSISTANT text streaming
     if (evt.type === 'response.text.delta') {
       this.assistantDraft += (evt.delta || '');
-      this.upsert('assistant', this.assistantDraft);
+      this.upsertDraft('assistant', this.assistantDraft);
       return;
     }
 
-    // Helpful if event names differ:
-    // console.log('evt', evt);
+    if (evt.type === 'response.text.done') {
+      this.finalizeDraft('assistant', this.assistantDraft);
+      return;
+    }
+
   }
 
   private async waitForDataChannelOpen(): Promise<void> {
