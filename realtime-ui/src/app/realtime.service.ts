@@ -168,20 +168,18 @@ export class RealtimeService {
 
     if (evt.type === 'conversation.item.input_audio_transcription.completed') {
       const finalUserText = (evt.transcript || this.userDraft || '').trim();
-
-      // finalize UI
       this.finalizeDraft('user', finalUserText);
 
-      // ✅ NEW: clear for the next turn (backup reset)
       this.userDraft = '';
-
-      // start assistant response
       this.assistantDraft = '';
+
+      this.assistantInProgress = true; // ✅
       this.sendEvent({ type: 'response.create', response: { modalities: ['text'] } });
       return;
     }
 
     if (evt.type === 'response.text.delta') {
+      if (!this.assistantInProgress) return; // ✅ ignore late deltas
       this.assistantDraft += (evt.delta || '');
       this.upsertDraft('assistant', this.assistantDraft);
       return;
@@ -189,8 +187,15 @@ export class RealtimeService {
 
     if (evt.type === 'response.text.done') {
       this.finalizeDraft('assistant', this.assistantDraft);
+      this.assistantInProgress = false; // ✅
       return;
     }
+
+    if (evt.type === 'error') {
+      this.assistantInProgress = false;
+      return;
+    }
+
   }
 
   private async waitForDataChannelOpen(): Promise<void> {
