@@ -28,7 +28,13 @@ public class RealtimeTokenController {
         String body = """
                   {
                   "model": "gpt-4o-realtime-preview",
-                  "turn_detection": { "type": "server_vad", "create_response": false },
+                  "turn_detection": {
+                    "type": "server_vad",
+                    "threshold": 0.5,
+                    "prefix_padding_ms": 300,
+                    "silence_duration_ms": 1000,
+                    "create_response": false
+                  },
                   "input_audio_transcription": { "model": "whisper-1" },
                   "instructions": "You are a helpful assistant. Respond in a natural, human-like tone with occasional short pauses (use '...' sparingly). Keep answers clear and not too long.",
                   "modalities": ["text"]
