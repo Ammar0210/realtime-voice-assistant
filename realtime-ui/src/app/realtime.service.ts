@@ -16,8 +16,11 @@ export class RealtimeService {
   private userDraft = '';
   private assistantDraft = '';
   private assistantInProgress = false;
+  private lastDeviceId?: string;
+  private reconnecting = false;
 
   async connect(deviceId?: string) {
+    this.lastDeviceId = deviceId;
     // 1) Get ephemeral client secret from Spring Boot
     const session = await fetch('http://localhost:8080/api/realtime-token').then(r => r.json());
     const clientSecret: string | undefined = session?.client_secret?.value;
@@ -31,11 +34,23 @@ export class RealtimeService {
     // 3) WebRTC setup
     this.pc = new RTCPeerConnection();
 
-    this.pc.oniceconnectionstatechange = () =>
-      console.log('ICE state:', this.pc?.iceConnectionState);
+    this.pc.oniceconnectionstatechange = () => {
+      const st = this.pc?.iceConnectionState;
+      console.log('ICE state:', st);
 
-    this.pc.onconnectionstatechange = () =>
-      console.log('PC state:', this.pc?.connectionState);
+      if (st === 'failed' || st === 'disconnected') {
+        this.tryReconnect();
+      }
+    };
+
+    this.pc.onconnectionstatechange = () => {
+      const st = this.pc?.connectionState;
+      console.log('PC state:', st);
+
+      if (st === 'failed' || st === 'disconnected') {
+        this.tryReconnect();
+      }
+    };
 
     for (const track of this.localStream.getTracks()) {
       this.pc.addTrack(track, this.localStream);
@@ -76,7 +91,7 @@ export class RealtimeService {
     });
   }
 
-  disconnect() {
+  disconnect({ clearMessages = false }: { clearMessages?: boolean } = {}) {
     try { this.dc?.close(); } catch {}
     try { this.pc?.close(); } catch {}
     this.dc = undefined;
@@ -89,7 +104,11 @@ export class RealtimeService {
 
     this.userDraft = '';
     this.assistantDraft = '';
-    this.messagesSubject.next([]);
+    this.assistantInProgress = false;
+
+    if (clearMessages) {
+      this.messagesSubject.next([]);
+    }
   }
 
   private sendEvent(evt: any) {
@@ -193,6 +212,12 @@ export class RealtimeService {
 
     if (evt.type === 'error') {
       this.assistantInProgress = false;
+
+      const msg = evt.error?.message || JSON.stringify(evt.error || evt);
+      this.messagesSubject.next([
+        ...this.messagesSubject.value,
+        { role: 'assistant', text: `⚠️ Realtime error: ${msg}` }
+      ]);
       return;
     }
 
@@ -230,5 +255,47 @@ export class RealtimeService {
       this.messagesSubject.next(list);
     }
   }
+
+  private async tryReconnect() {
+    if (this.reconnecting) return;
+    this.reconnecting = true;
+
+    // Add a small status message (optional)
+    this.messagesSubject.next([
+      ...this.messagesSubject.value,
+      { role: 'assistant', text: '⚠️ Connection lost… reconnecting.' }
+    ]);
+
+    // backoff retries
+    const delays = [250, 500, 1000, 2000, 4000];
+
+    for (const ms of delays) {
+      try {
+        // Close old connections but keep messages
+        this.disconnect({ clearMessages: false });
+
+        await new Promise(r => setTimeout(r, ms));
+        await this.connect(this.lastDeviceId);
+
+        this.messagesSubject.next([
+          ...this.messagesSubject.value,
+          { role: 'assistant', text: '✅ Reconnected.' }
+        ]);
+
+        this.reconnecting = false;
+        return;
+      } catch (e) {
+        console.warn('Reconnect attempt failed:', e);
+      }
+    }
+
+    this.messagesSubject.next([
+      ...this.messagesSubject.value,
+      { role: 'assistant', text: '❌ Could not reconnect. Please click Start again.' }
+    ]);
+
+    this.reconnecting = false;
+  }
+
 
 }
