@@ -284,3 +284,12 @@ body {
 .debugRow .k { color: #93c5fd; } /* light blue */
 .debugRow .v { opacity: 0.9; }
 .btn.small { padding: 6px 10px; font-size: 12px; }
+
+.pill{
+  margin-left:10px;
+  padding:4px 10px;
+  border-radius:999px;
+  font-size:12px;
+  background: rgba(255,255,255,0.08);
+  opacity: 0.9;
+}

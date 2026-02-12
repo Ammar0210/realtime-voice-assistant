@@ -109,4 +109,8 @@ export class App implements OnInit, AfterViewInit {
     await navigator.clipboard.writeText(text);
   }
 
+  get state$() {
+    return this.rt.state$;
+  }
+
 }

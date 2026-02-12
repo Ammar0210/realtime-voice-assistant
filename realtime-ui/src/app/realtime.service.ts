@@ -5,6 +5,16 @@ export type DebugEvent = {
   raw?: any;           // optional raw object (keep off by default if you want)
 };
 
+export type RtState =
+  | 'idle'
+  | 'connecting'
+  | 'listening'
+  | 'thinking'
+  | 'responding'
+  | 'reconnecting'
+  | 'disconnected'
+  | 'error';
+
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { SYSTEM_PROMPT } from './prompt';
@@ -29,7 +39,17 @@ export class RealtimeService {
   private debugSubject = new BehaviorSubject<DebugEvent[]>([]);
   debug$ = this.debugSubject.asObservable();
 
+  private stateSubject = new BehaviorSubject<RtState>('idle');
+  state$ = this.stateSubject.asObservable();
+
+  private setState(s: RtState, note?: string) {
+    this.stateSubject.next(s);
+    // optional debug log:
+    this.pushDebug?.('state', `${s}${note ? ' | ' + note : ''}`);
+  }
+
   async connect(deviceId?: string) {
+    this.setState('connecting');
     this.lastDeviceId = deviceId;
     this.pushDebug('client.connect', `deviceId=${deviceId || 'default'}`);
 
@@ -55,6 +75,10 @@ export class RealtimeService {
       const st = this.pc?.iceConnectionState;
       console.log('ICE state:', st);
 
+      if (st === 'connected' || st === 'completed') this.setState('listening');
+      if (st === 'disconnected' || st === 'failed') this.setState('reconnecting');
+      if (st === 'closed') this.setState('disconnected');
+
       if (st === 'failed' || st === 'disconnected') {
         this.tryReconnect();
       }
@@ -64,6 +88,11 @@ export class RealtimeService {
       this.pushDebug('pc.state', `${this.pc?.connectionState}`);
       const st = this.pc?.connectionState;
       console.log('PC state:', st);
+
+      if (st === 'connected') this.setState('listening');
+      if (st === 'disconnected') this.setState('reconnecting');
+      if (st === 'failed') this.setState('reconnecting');
+      if (st === 'closed') this.setState('disconnected');
 
       if (st === 'failed' || st === 'disconnected') {
         this.tryReconnect();
@@ -107,6 +136,9 @@ export class RealtimeService {
       type: 'session.update',
       session: { instructions: SYSTEM_PROMPT }
     });
+
+    // ✅ Ready to listen
+    this.setState('listening');
   }
 
   disconnect({ clearMessages = false }: { clearMessages?: boolean } = {}) {
@@ -147,6 +179,8 @@ export class RealtimeService {
     }
 
     this.messagesSubject.next(list);
+
+    this.setState('disconnected');
   }
 
   private finalizeDraft(role: ChatMsg['role'], finalText: string) {
@@ -215,6 +249,7 @@ export class RealtimeService {
     // ✅ NEW: Reset draft at the start of a new speech segment
     // (This event is emitted when server VAD detects speech.)
     if (evt.type === 'input_audio_buffer.speech_started') {
+      this.setState('listening');
       // reset user draft for the new turn (from #1)
       this.userDraft = '';
       this.upsertDraft('user', '');
@@ -238,6 +273,7 @@ export class RealtimeService {
     }
 
     if (evt.type === 'conversation.item.input_audio_transcription.completed') {
+      this.setState('thinking'); // we have the input, about to generate
       const finalUserText = (evt.transcript || this.userDraft || '').trim();
       this.finalizeDraft('user', finalUserText);
 
@@ -250,6 +286,9 @@ export class RealtimeService {
     }
 
     if (evt.type === 'response.text.delta') {
+      if (this.stateSubject.value !== 'responding') {
+        this.setState('responding');
+      }
       if (!this.assistantInProgress) return; // ✅ ignore late deltas
       this.assistantDraft += (evt.delta || '');
       this.upsertDraft('assistant', this.assistantDraft);
@@ -259,12 +298,13 @@ export class RealtimeService {
     if (evt.type === 'response.text.done') {
       this.finalizeDraft('assistant', this.assistantDraft);
       this.assistantInProgress = false; // ✅
+      this.setState('listening');
       return;
     }
 
     if (evt.type === 'error') {
       this.assistantInProgress = false;
-
+      this.setState('error');
       const msg = evt.error?.message || JSON.stringify(evt.error || evt);
       this.messagesSubject.next([
         ...this.messagesSubject.value,
@@ -311,6 +351,7 @@ export class RealtimeService {
   private async tryReconnect() {
     if (this.reconnecting) return;
     this.reconnecting = true;
+    this.setState('reconnecting');
 
     // Add a small status message (optional)
     this.messagesSubject.next([
@@ -346,6 +387,7 @@ export class RealtimeService {
       { role: 'assistant', text: '❌ Could not reconnect. Please click Start again.' }
     ]);
 
+    this.setState('listening');
     this.reconnecting = false;
   }
 
