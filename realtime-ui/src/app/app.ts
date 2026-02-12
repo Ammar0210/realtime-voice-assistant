@@ -79,7 +79,7 @@ export class App implements OnInit, AfterViewInit {
   }
 
   async start() {
-    await this.rt.connect(this.selectedDeviceId);
+    await this.rt.connect(this.selectedDeviceId, this.vad);
     this.connected = true;
   }
 
@@ -179,6 +179,16 @@ export class App implements OnInit, AfterViewInit {
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  vad = {
+    threshold: 0.5,
+    prefixPaddingMs: 300,
+    silenceDurationMs: 2000
+  };
+
+  resetVad() {
+    this.vad = { threshold: 0.5, prefixPaddingMs: 300, silenceDurationMs: 1000 };
   }
 
 }

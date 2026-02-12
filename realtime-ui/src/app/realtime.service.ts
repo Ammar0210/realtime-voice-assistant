@@ -5,6 +5,12 @@ export type DebugEvent = {
   raw?: any;           // optional raw object (keep off by default if you want)
 };
 
+export type VadSettings = {
+  threshold: number;         // 0..1
+  prefixPaddingMs: number;   // e.g. 0..2000
+  silenceDurationMs: number; // e.g. 200..5000
+};
+
 export type RtState =
   | 'idle'
   | 'connecting'
@@ -52,13 +58,22 @@ export class RealtimeService {
     this.pushDebug?.('state', `${s}${note ? ' | ' + note : ''}`);
   }
 
-  async connect(deviceId?: string) {
+  async connect(deviceId?: string, vad?: VadSettings) {
     this.setState('connecting');
     this.lastDeviceId = deviceId;
     this.pushDebug('client.connect', `deviceId=${deviceId || 'default'}`);
 
     // 1) Get ephemeral client secret from Spring Boot
-    const session = await fetch('http://localhost:8080/api/realtime-token').then(r => r.json());
+    const params = new URLSearchParams();
+    if (vad) {
+      params.set('threshold', String(vad.threshold));
+      params.set('prefixPaddingMs', String(vad.prefixPaddingMs));
+      params.set('silenceDurationMs', String(vad.silenceDurationMs));
+    }
+
+    const url = `http://localhost:8080/api/realtime-token${params.toString() ? '?' + params.toString() : ''}`;
+
+    const session = await fetch(url).then(r => r.json());
     this.pushDebug('token.ok');
 
     const clientSecret: string | undefined = session?.client_secret?.value;
