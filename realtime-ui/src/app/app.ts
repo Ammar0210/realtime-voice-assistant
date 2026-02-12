@@ -126,4 +126,59 @@ export class App implements OnInit, AfterViewInit {
     }
   }
 
+  private getMessagesSnapshot() {
+    // BehaviorSubject is private, so we pull from observable once using current value:
+    // easiest is to add a helper in service, but we can also subscribe once.
+    // Best: add a method in service. We'll do that.
+  }
+
+  exportJson() {
+    const msgs = this.rt.getMessages().map(m => ({
+      ts: m.ts,
+      iso: new Date(m.ts).toISOString(),
+      role: m.role,
+      text: m.text.replace(/^\[draft\]/, '') // strip draft tag just in case
+    }));
+
+    const blob = new Blob([JSON.stringify(msgs, null, 2)], { type: 'application/json' });
+    this.downloadBlob(blob, `conversation-${this.fileStamp()}.json`);
+  }
+
+  exportTxt() {
+    const msgs = this.rt.getMessages().map(m => {
+      const time = new Date(m.ts).toLocaleString();
+      const who = m.role === 'user' ? 'You' : 'Assistant';
+      const text = m.text.replace(/^\[draft\]/, '');
+      return `[${time}] ${who}:\n${text}\n`;
+    });
+
+    const blob = new Blob([msgs.join('\n')], { type: 'text/plain' });
+    this.downloadBlob(blob, `conversation-${this.fileStamp()}.txt`);
+  }
+
+  async copyTranscript() {
+    const msgs = this.rt.getMessages().map(m => {
+      const who = m.role === 'user' ? 'You' : 'Assistant';
+      const text = m.text.replace(/^\[draft\]/, '');
+      return `${who}: ${text}`;
+    }).join('\n\n');
+
+    await navigator.clipboard.writeText(msgs);
+  }
+
+  private fileStamp() {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  }
+
+  private downloadBlob(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
 }

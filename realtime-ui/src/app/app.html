@@ -40,6 +40,14 @@
         </button>
       </div>
 
+      <ng-container *ngIf="messages$ | async as msgs">
+        <div class="row" style="gap:8px; margin-top:12px;">
+          <button class="btn" (click)="exportJson()" [disabled]="!msgs.length">Export JSON</button>
+          <button class="btn" (click)="exportTxt()" [disabled]="!msgs.length">Export TXT</button>
+          <button class="btn" (click)="copyTranscript()" [disabled]="!msgs.length">Copy</button>
+        </div>
+      </ng-container>
+
       <div class="row" style="gap:8px; margin-top:12px;">
         <button class="btn" (click)="showDebug = !showDebug">
           {{ showDebug ? 'Hide Debug' : 'Show Debug' }}

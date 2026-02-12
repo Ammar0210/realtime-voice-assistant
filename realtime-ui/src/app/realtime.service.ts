@@ -19,7 +19,11 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { SYSTEM_PROMPT } from './prompt';
 
-export type ChatMsg = { role: 'user' | 'assistant'; text: string };
+export type ChatMsg = {
+  role: 'user' | 'assistant';
+  text: string;
+  ts: number; // epoch ms
+};
 
 @Injectable({ providedIn: 'root' })
 export class RealtimeService {
@@ -169,44 +173,29 @@ export class RealtimeService {
   }
 
   private upsertDraft(role: ChatMsg['role'], text: string) {
+    this.setState('disconnected');
     const list = this.messagesSubject.value.slice();
     const last = list[list.length - 1];
 
     if (last && last.role === role && last.text.startsWith('[draft]')) {
-      list[list.length - 1] = { role, text: `[draft]${text}` };
+      list[list.length - 1] = { ...last, text: `[draft]${text}` };
     } else {
-      list.push({ role, text: `[draft]${text}` });
+      list.push({ role, text: `[draft]${text}`, ts: Date.now() });
     }
 
     this.messagesSubject.next(list);
-
-    this.setState('disconnected');
   }
 
   private finalizeDraft(role: ChatMsg['role'], finalText: string) {
     const list = this.messagesSubject.value.slice();
-
-    // remove any trailing draft of same role
     const last = list[list.length - 1];
+
     if (last && last.role === role && last.text.startsWith('[draft]')) {
-      list[list.length - 1] = { role, text: finalText };
+      list[list.length - 1] = { ...last, text: finalText };
     } else {
-      list.push({ role, text: finalText });
+      list.push({ role, text: finalText, ts: Date.now() });
     }
 
-    this.messagesSubject.next(list);
-  }
-
-  private upsert(role: ChatMsg['role'], text: string) {
-    const list = this.messagesSubject.value.slice();
-    for (let i = list.length - 1; i >= 0; i--) {
-      if (list[i].role === role) {
-        list[i] = { role, text };
-        this.messagesSubject.next(list);
-        return;
-      }
-    }
-    list.push({ role, text });
     this.messagesSubject.next(list);
   }
 
@@ -308,7 +297,7 @@ export class RealtimeService {
       const msg = evt.error?.message || JSON.stringify(evt.error || evt);
       this.messagesSubject.next([
         ...this.messagesSubject.value,
-        { role: 'assistant', text: `⚠️ Realtime error: ${msg}` }
+        { role: 'assistant', text: `⚠️ Realtime error: ${msg}`, ts: Date.now() }
       ]);
       return;
     }
@@ -343,7 +332,7 @@ export class RealtimeService {
 
     if (last?.role === 'assistant' && last.text.startsWith('[draft]')) {
       const text = last.text.replace(/^\[draft\]/, '').trim();
-      list[list.length - 1] = { role: 'assistant', text: text ? `${text} (interrupted)` : '(interrupted)' };
+      list[list.length - 1] = { role: 'assistant', text: text ? `${text} (interrupted)` : '(interrupted)', ts: Date.now() };
       this.messagesSubject.next(list);
     }
   }
@@ -356,7 +345,7 @@ export class RealtimeService {
     // Add a small status message (optional)
     this.messagesSubject.next([
       ...this.messagesSubject.value,
-      { role: 'assistant', text: '⚠️ Connection lost… reconnecting.' }
+      { role: 'assistant', text: '⚠️ Connection lost… reconnecting.', ts: Date.now() }
     ]);
 
     // backoff retries
@@ -372,7 +361,7 @@ export class RealtimeService {
 
         this.messagesSubject.next([
           ...this.messagesSubject.value,
-          { role: 'assistant', text: '✅ Reconnected.' }
+          { role: 'assistant', text: '✅ Reconnected.', ts: Date.now() }
         ]);
 
         this.reconnecting = false;
@@ -384,7 +373,7 @@ export class RealtimeService {
 
     this.messagesSubject.next([
       ...this.messagesSubject.value,
-      { role: 'assistant', text: '❌ Could not reconnect. Please click Start again.' }
+      { role: 'assistant', text: '❌ Could not reconnect. Please click Start again.', ts: Date.now() }
     ]);
 
     this.setState('listening');
@@ -408,6 +397,10 @@ export class RealtimeService {
 
   setDebugEnabled(enabled: boolean) {
     this.debugEnabled = enabled;
+  }
+
+  getMessages(): ChatMsg[] {
+    return this.messagesSubject.value.slice();
   }
 
 }
