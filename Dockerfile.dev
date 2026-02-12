@@ -1,0 +1,16 @@
+# Dev image — runs Gradle bootRun with Spring DevTools for hot reload
+FROM gradle:8.10-jdk17
+WORKDIR /app
+COPY . .
+
+USER root
+RUN chown -R gradle:gradle /app
+USER gradle
+
+# Pre-download dependencies so restarts are fast
+RUN gradle --no-daemon dependencies
+
+EXPOSE 8080
+# bootRun enables Spring DevTools auto-restart when classes change
+ENTRYPOINT ["gradle", "--no-daemon", "bootRun"]
+

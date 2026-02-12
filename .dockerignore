@@ -1,0 +1,27 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.idea
+.vscode
+*.iml
+*.iws
+*.ipr
+
+# Build output
+build/
+out/
+
+# Frontend (not needed for backend image)
+realtime-ui/
+
+# Docs
+README.md
+*.md
+
+# Environment
+.env
+.env.*
+
