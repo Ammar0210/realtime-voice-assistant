@@ -15,6 +15,7 @@ export class RealtimeService {
 
   private userDraft = '';
   private assistantDraft = '';
+  private assistantInProgress = false;
 
   async connect(deviceId?: string) {
     // 1) Get ephemeral client secret from Spring Boot
@@ -140,6 +141,25 @@ export class RealtimeService {
     let evt: any;
     try { evt = JSON.parse(raw); } catch { return; }
 
+    // ✅ NEW: Reset draft at the start of a new speech segment
+    // (This event is emitted when server VAD detects speech.)
+    if (evt.type === 'input_audio_buffer.speech_started') {
+      // reset user draft for the new turn (from #1)
+      this.userDraft = '';
+      this.upsertDraft('user', '');
+
+      // ✅ BARGE-IN: cancel assistant if it's responding
+      if (this.assistantInProgress) {
+        // optional UI polish:
+        this.markAssistantInterrupted();
+
+        this.sendEvent({ type: 'response.cancel' });
+        this.assistantInProgress = false;
+        this.assistantDraft = '';
+      }
+      return;
+    }
+
     if (evt.type === 'conversation.item.input_audio_transcription.delta') {
       this.userDraft += (evt.delta || '');
       this.upsertDraft('user', this.userDraft);
@@ -147,9 +167,15 @@ export class RealtimeService {
     }
 
     if (evt.type === 'conversation.item.input_audio_transcription.completed') {
-      this.userDraft = evt.transcript || this.userDraft;
-      this.finalizeDraft('user', this.userDraft);
+      const finalUserText = (evt.transcript || this.userDraft || '').trim();
 
+      // finalize UI
+      this.finalizeDraft('user', finalUserText);
+
+      // ✅ NEW: clear for the next turn (backup reset)
+      this.userDraft = '';
+
+      // start assistant response
       this.assistantDraft = '';
       this.sendEvent({ type: 'response.create', response: { modalities: ['text'] } });
       return;
@@ -165,7 +191,6 @@ export class RealtimeService {
       this.finalizeDraft('assistant', this.assistantDraft);
       return;
     }
-
   }
 
   private async waitForDataChannelOpen(): Promise<void> {
@@ -189,5 +214,16 @@ export class RealtimeService {
     });
   }
 
+  private markAssistantInterrupted() {
+    // If last assistant message is a draft, finalize it with a note (optional)
+    const list = this.messagesSubject.value.slice();
+    const last = list[list.length - 1];
+
+    if (last?.role === 'assistant' && last.text.startsWith('[draft]')) {
+      const text = last.text.replace(/^\[draft\]/, '').trim();
+      list[list.length - 1] = { role: 'assistant', text: text ? `${text} (interrupted)` : '(interrupted)' };
+      this.messagesSubject.next(list);
+    }
+  }
 
 }
