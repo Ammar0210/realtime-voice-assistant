@@ -113,4 +113,17 @@ export class App implements OnInit, AfterViewInit {
     return this.rt.state$;
   }
 
+  stateLabel(s: string | null | undefined) {
+    switch (s) {
+      case 'connecting': return 'Connecting…';
+      case 'listening': return 'Listening';
+      case 'thinking': return 'Thinking…';
+      case 'responding': return 'Responding…';
+      case 'reconnecting': return 'Reconnecting…';
+      case 'error': return 'Error';
+      case 'disconnected': return 'Disconnected';
+      default: return 'Idle';
+    }
+  }
+
 }

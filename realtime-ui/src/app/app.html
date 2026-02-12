@@ -11,7 +11,7 @@
     <div class="status" [class.on]="connected">
       <span class="dot"></span>
       <span>{{ connected ? 'Connected' : 'Disconnected' }}</span>
-      <span class="pill" *ngIf="connected">{{ (state$ | async) }}</span>
+      <span class="pill" *ngIf="connected">{{ stateLabel(state$ | async) }}</span>
     </div>
   </header>
 
