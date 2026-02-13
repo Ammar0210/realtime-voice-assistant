@@ -27,6 +27,10 @@ export class App implements OnInit, AfterViewInit {
   showDebug = false;
   debugEnabled = true;
 
+  apiKey = '';
+  apiKeyStatus: 'idle' | 'validating' | 'valid' | 'invalid' = 'idle';
+  apiKeyError = '';
+
   constructor(private rt: RealtimeService, private cdr: ChangeDetectorRef) {}
 
   get messages$() {
@@ -85,8 +89,27 @@ export class App implements OnInit, AfterViewInit {
     return `${prompt}\n\nRESUME:\n${this.resumeText.trim()}`;
   }
 
+  async validateKey() {
+    if (!this.apiKey.trim()) return;
+    this.apiKeyStatus = 'validating';
+    this.apiKeyError = '';
+    try {
+      const result = await this.rt.validateKey(this.apiKey.trim());
+      if (result.valid) {
+        this.apiKeyStatus = 'valid';
+      } else {
+        this.apiKeyStatus = 'invalid';
+        this.apiKeyError = result.error || 'Invalid API key';
+      }
+    } catch {
+      this.apiKeyStatus = 'invalid';
+      this.apiKeyError = 'Could not reach validation endpoint';
+    }
+    this.cdr.detectChanges();
+  }
+
   async start() {
-    await this.rt.connect(this.selectedDeviceId, this.vad, this.buildPrompt());
+    await this.rt.connect(this.selectedDeviceId, this.vad, this.buildPrompt(), this.apiKey);
     this.connected = true;
   }
 

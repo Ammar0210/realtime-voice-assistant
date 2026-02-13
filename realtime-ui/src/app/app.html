@@ -50,6 +50,33 @@
                 [disabled]="connected">
       </textarea>
 
+      <hr class="sep" />
+
+      <label class="label" for="apiKeyInput">OpenAI API Key</label>
+      <div class="row" style="gap:8px; align-items:center;">
+        <input id="apiKeyInput"
+               class="input"
+               type="password"
+               placeholder="sk-..."
+               [(ngModel)]="apiKey"
+               [disabled]="connected"
+               style="flex:1;" />
+        <button class="btn"
+                (click)="validateKey()"
+                [disabled]="connected || !apiKey.trim() || apiKeyStatus === 'validating'">
+          {{ apiKeyStatus === 'validating' ? 'Validating…' : 'Validate' }}
+        </button>
+      </div>
+      <div *ngIf="apiKeyStatus === 'valid'" class="hint" style="color:#22c55e;">
+        Key is valid
+      </div>
+      <div *ngIf="apiKeyStatus === 'invalid'" class="hint" style="color:#ef4444;">
+        {{ apiKeyError }}
+      </div>
+      <div class="hint">
+        Optional — leave blank to use the server's default key.
+      </div>
+
       <div class="row">
         <button class="btn primary" (click)="start()" [disabled]="connected">
           Start

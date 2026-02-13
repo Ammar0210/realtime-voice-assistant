@@ -57,22 +57,36 @@ export class RealtimeService {
     this.pushDebug?.('state', `${s}${note ? ' | ' + note : ''}`);
   }
 
-  async connect(deviceId?: string, vad?: VadSettings, systemPrompt?: string) {
+  async validateKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
+    const resp = await fetch('/api/validate-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey })
+    });
+    return resp.json();
+  }
+
+  async connect(deviceId?: string, vad?: VadSettings, systemPrompt?: string, apiKey?: string) {
     this.setState('connecting');
     this.lastDeviceId = deviceId;
     this.pushDebug('client.connect', `deviceId=${deviceId || 'default'}`);
 
     // 1) Get ephemeral client secret from Spring Boot
-    const params = new URLSearchParams();
+    const tokenBody: Record<string, unknown> = {};
     if (vad) {
-      params.set('threshold', String(vad.threshold));
-      params.set('prefixPaddingMs', String(vad.prefixPaddingMs));
-      params.set('silenceDurationMs', String(vad.silenceDurationMs));
+      tokenBody['threshold'] = vad.threshold;
+      tokenBody['prefixPaddingMs'] = vad.prefixPaddingMs;
+      tokenBody['silenceDurationMs'] = vad.silenceDurationMs;
+    }
+    if (apiKey?.trim()) {
+      tokenBody['apiKey'] = apiKey.trim();
     }
 
-    const url = `/api/realtime-token${params.toString() ? '?' + params.toString() : ''}`;
-
-    const session = await fetch(url).then(r => r.json());
+    const session = await fetch('/api/realtime-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(tokenBody)
+    }).then(r => r.json());
     this.pushDebug('token.ok');
 
     const clientSecret: string | undefined = session?.client_secret?.value;

@@ -2,14 +2,15 @@ package com.ammar.realtime;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.Map;
 
 @RestController
 public class RealtimeTokenController {
@@ -19,18 +20,51 @@ public class RealtimeTokenController {
 
     private final HttpClient http = HttpClient.newHttpClient();
 
-    @GetMapping(value = "/api/realtime-token", produces = MediaType.APPLICATION_JSON_VALUE)
-    public String getEphemeralRealtimeToken(
-            @RequestParam(name = "threshold", required = false) Double threshold,
-            @RequestParam(name = "prefixPaddingMs", required = false) Integer prefixPaddingMs,
-            @RequestParam(name = "silenceDurationMs", required = false) Integer silenceDurationMs
-    ) throws Exception {
+    @PostMapping(value = "/api/validate-key", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public String validateKey(@RequestBody Map<String, Object> body) {
+        String apiKey = body.get("apiKey") != null ? body.get("apiKey").toString().trim() : "";
 
-        if (openAiApiKey == null || openAiApiKey.isBlank()) {
-            throw new IllegalStateException("OPENAI_API_KEY is not set. Set it in your environment.");
+        if (apiKey.isBlank()) {
+            return "{\"valid\":false,\"error\":\"API key is empty\"}";
         }
 
-        // Defaults (your current values)
+        try {
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.openai.com/v1/models"))
+                    .header("Authorization", "Bearer " + apiKey)
+                    .GET()
+                    .build();
+
+            HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+
+            if (resp.statusCode() == 200) {
+                return "{\"valid\":true}";
+            } else {
+                String msg = resp.statusCode() == 401 ? "Invalid API key" : "OpenAI returned status " + resp.statusCode();
+                return "{\"valid\":false,\"error\":\"" + msg.replace("\"", "\\\"") + "\"}";
+            }
+        } catch (Exception e) {
+            return "{\"valid\":false,\"error\":\"Connection error: " + e.getMessage().replace("\"", "\\\"") + "\"}";
+        }
+    }
+
+    @PostMapping(value = "/api/realtime-token", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public String getEphemeralRealtimeToken(@RequestBody Map<String, Object> body) throws Exception {
+
+        // Determine which API key to use: user-provided or server env
+        String userKey = body.get("apiKey") != null ? body.get("apiKey").toString().trim() : "";
+        String effectiveKey = userKey;
+
+        if (effectiveKey == null || effectiveKey.isBlank()) {
+            throw new IllegalStateException("No API key available. Provide one in the request or set OPENAI_API_KEY on the server.");
+        }
+
+        // Read VAD settings from body
+        Double threshold = body.get("threshold") != null ? ((Number) body.get("threshold")).doubleValue() : null;
+        Integer prefixPaddingMs = body.get("prefixPaddingMs") != null ? ((Number) body.get("prefixPaddingMs")).intValue() : null;
+        Integer silenceDurationMs = body.get("silenceDurationMs") != null ? ((Number) body.get("silenceDurationMs")).intValue() : null;
+
+        // Defaults
         double th = (threshold != null) ? threshold : 0.5;
         int prefix = (prefixPaddingMs != null) ? prefixPaddingMs : 300;
         int silence = (silenceDurationMs != null) ? silenceDurationMs : 1000;
@@ -40,7 +74,7 @@ public class RealtimeTokenController {
         if (prefix < 0 || prefix > 2000) prefix = 300;
         if (silence < 200 || silence > 5000) silence = 1000;
 
-        String body = """
+        String requestBody = """
         {
           "model": "gpt-4o-realtime-preview",
           "turn_detection": {
@@ -58,9 +92,9 @@ public class RealtimeTokenController {
 
         HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create("https://api.openai.com/v1/realtime/sessions"))
-                .header("Authorization", "Bearer " + openAiApiKey)
+                .header("Authorization", "Bearer " + effectiveKey)
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
 
         HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
