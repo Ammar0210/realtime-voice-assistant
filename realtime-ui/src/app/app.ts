@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { RealtimeService } from './realtime.service';
 import { AfterViewInit, ElementRef, ViewChild } from '@angular/core';
 import { Subscription } from 'rxjs';
+import {DEFAULT_SYSTEM_PROMPT} from './constant';
 
 @Component({
   selector: 'app-root',
@@ -18,7 +19,7 @@ export class App implements OnInit, AfterViewInit {
   private sub?: Subscription;
   devices: MediaDeviceInfo[] = [];
   resumeText = '';
-  systemPrompt = '';
+  systemPrompt = DEFAULT_SYSTEM_PROMPT;
   selectedDeviceId?: string;
   connected = false;
   devicesLoading = false;

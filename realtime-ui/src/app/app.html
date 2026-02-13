@@ -47,7 +47,8 @@
                 rows="4"
                 placeholder="e.g. You are an interview assistant. Answer as if you are the candidate…"
                 [(ngModel)]="systemPrompt"
-                [disabled]="connected"></textarea>
+                [disabled]="connected">
+      </textarea>
 
       <div class="row">
         <button class="btn primary" (click)="start()" [disabled]="connected">
