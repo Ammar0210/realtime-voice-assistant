@@ -57,8 +57,10 @@ export class RealtimeService {
     this.pushDebug?.('state', `${s}${note ? ' | ' + note : ''}`);
   }
 
+  private readonly apiBase = 'https://realtime-voice-assistant-production.up.railway.app';
+
   async validateKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
-    const resp = await fetch('/api/validate-key', {
+    const resp = await fetch(`${this.apiBase}/api/validate-key`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ apiKey })
@@ -82,7 +84,7 @@ export class RealtimeService {
       tokenBody['apiKey'] = apiKey.trim();
     }
 
-    const session = await fetch('/api/realtime-token', {
+    const session = await fetch(`${this.apiBase}/api/realtime-token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(tokenBody)
