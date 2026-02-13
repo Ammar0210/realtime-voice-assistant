@@ -9,17 +9,22 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class CorsConfig {
 
+    // comma-separated patterns
+    // example:
+    // https://realtime-voice-assistant.vercel.app,https://realtime-voice-assistant-*.vercel.app,http://localhost:4200
     @Value("${cors.allowed-origins:http://localhost:4200}")
     private String allowedOrigins;
 
     @Bean
     public WebMvcConfigurer corsConfigurer() {
+        String[] origins = allowedOrigins.split(",");
+
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/api/**")
-                        .allowedOrigins(allowedOrigins.split(","))
-                        .allowedMethods("GET", "POST", "OPTIONS")
+                        .allowedOriginPatterns(origins)
+                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         .allowedHeaders("*");
             }
         };
