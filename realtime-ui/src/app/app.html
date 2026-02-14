@@ -59,6 +59,7 @@
                type="password"
                placeholder="sk-..."
                [(ngModel)]="apiKey"
+               (ngModelChange)="apiKeyStatus = 'idle'; apiKeyError = ''"
                [disabled]="connected"
                style="flex:1;" />
         <button class="btn"
@@ -74,11 +75,11 @@
         {{ apiKeyError }}
       </div>
       <div class="hint">
-        Optional — leave blank to use the server's default key.
+        Enter your OpenAI API key and validate it before starting.
       </div>
 
       <div class="row">
-        <button class="btn primary" (click)="start()" [disabled]="connected">
+        <button class="btn primary" (click)="start()" [disabled]="connected || apiKeyStatus !== 'valid'">
           Start
         </button>
         <button class="btn" (click)="stop()" [disabled]="!connected">
