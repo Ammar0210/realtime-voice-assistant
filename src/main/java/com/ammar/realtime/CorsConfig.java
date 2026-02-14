@@ -9,9 +9,6 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class CorsConfig {
 
-    // comma-separated patterns
-    // example:
-    // https://realtime-voice-assistant.vercel.app,https://realtime-voice-assistant-*.vercel.app,http://localhost:4200
     @Value("${cors.allowed-origins:http://localhost:4200}")
     private String allowedOrigins;
 
@@ -22,8 +19,10 @@ public class CorsConfig {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/api/**")
-                        .allowedOriginPatterns(origins)
+
+                // ✅ apply to ALL endpoints (covers /validate-key and /api/**)
+                registry.addMapping("/**")
+                        .allowedOriginPatterns(origins) // ✅ supports vercel wildcard
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         .allowedHeaders("*");
             }
