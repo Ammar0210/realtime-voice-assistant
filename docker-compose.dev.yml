@@ -14,7 +14,7 @@ services:
       - ./src:/app/src
       - ./build.gradle:/app/build.gradle
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/realtime-token"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
       interval: 10s
       timeout: 5s
       retries: 5

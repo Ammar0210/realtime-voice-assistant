@@ -4,14 +4,16 @@
       <div class="logo">RT</div>
       <div>
         <div class="title">Realtime Voice Assistant</div>
-        <div class="subtitle">Live transcription + text responses (local)</div>
+        <div class="subtitle">Live transcription + text responses</div>
       </div>
     </div>
 
     <div class="status" [class.on]="connected">
       <span class="dot"></span>
       <span>{{ connected ? 'Connected' : 'Disconnected' }}</span>
-      <span class="pill" *ngIf="connected">{{ stateLabel(state$ | async) }}</span>
+      @if (connected) {
+        <span class="pill">{{ stateLabel(state$ | async) }}</span>
+      }
     </div>
   </header>
 
@@ -23,11 +25,14 @@
       <select class="select"
               [(ngModel)]="selectedDeviceId"
               [disabled]="connected || devicesLoading || !devicesReady">
-        <option *ngIf="devicesLoading" [value]="''">Loading devices…</option>
-
-        <option *ngFor="let d of devices" [value]="d.deviceId">
-          {{ d.label || '(device)' }}
-        </option>
+        @if (devicesLoading) {
+          <option [value]="''">Loading devices...</option>
+        }
+        @for (d of devices; track d.deviceId) {
+          <option [value]="d.deviceId">
+            {{ d.label || '(device)' }}
+          </option>
+        }
       </select>
 
 
@@ -37,7 +42,7 @@
       <textarea id="resumeInput"
                 class="textarea"
                 rows="6"
-                placeholder="Paste your resume or context here…"
+                placeholder="Paste your resume or context here..."
                 [(ngModel)]="resumeText"
                 [disabled]="connected"></textarea>
 
@@ -45,7 +50,7 @@
       <textarea id="promptInput"
                 class="textarea"
                 rows="4"
-                placeholder="e.g. You are an interview assistant. Answer as if you are the candidate…"
+                placeholder="e.g. You are an interview assistant. Answer as if you are the candidate..."
                 [(ngModel)]="systemPrompt"
                 [disabled]="connected">
       </textarea>
@@ -65,18 +70,28 @@
         <button class="btn"
                 (click)="validateKey()"
                 [disabled]="connected || !apiKey.trim() || apiKeyStatus === 'validating'">
-          {{ apiKeyStatus === 'validating' ? 'Validating…' : 'Validate' }}
+          {{ apiKeyStatus === 'validating' ? 'Validating...' : 'Validate' }}
         </button>
       </div>
-      <div *ngIf="apiKeyStatus === 'valid'" class="hint" style="color:#22c55e;">
-        Key is valid
-      </div>
-      <div *ngIf="apiKeyStatus === 'invalid'" class="hint" style="color:#ef4444;">
-        {{ apiKeyError }}
-      </div>
+      @if (apiKeyStatus === 'valid') {
+        <div class="hint" style="color:#22c55e;">
+          Key is valid
+        </div>
+      }
+      @if (apiKeyStatus === 'invalid') {
+        <div class="hint" style="color:#ef4444;">
+          {{ apiKeyError }}
+        </div>
+      }
       <div class="hint">
         Enter your OpenAI API key and validate it before starting.
       </div>
+
+      @if (startError) {
+        <div class="hint" style="color:#ef4444;">
+          {{ startError }}
+        </div>
+      }
 
       <div class="row">
         <button class="btn primary" (click)="start()" [disabled]="connected || apiKeyStatus !== 'valid'">
@@ -123,16 +138,16 @@
       </div>
 
       <div class="hint">
-        If responses cut off, increase <b>Silence duration</b> to 1300–1600ms.
+        If responses cut off, increase <b>Silence duration</b> to 1300-1600ms.
       </div>
 
-      <ng-container *ngIf="messages$ | async as msgs">
+      @if (messages$ | async; as msgs) {
         <div class="row" style="gap:8px; margin-top:12px;">
           <button class="btn" (click)="exportJson()" [disabled]="!msgs.length">Export JSON</button>
           <button class="btn" (click)="exportTxt()" [disabled]="!msgs.length">Export TXT</button>
           <button class="btn" (click)="copyTranscript()" [disabled]="!msgs.length">Copy</button>
         </div>
-      </ng-container>
+      }
 
       <div class="row" style="gap:8px; margin-top:12px;">
         <button class="btn" (click)="showDebug = !showDebug">
@@ -143,38 +158,44 @@
           Debug: {{ debugEnabled ? 'On' : 'Off' }}
         </button>
 
-        <ng-container *ngIf="debug$ | async as debug">
+        @if (debug$ | async; as debug) {
           <button class="btn" (click)="clearDebug()" [disabled]="!debug.length">
             Clear
           </button>
-        </ng-container>
+        }
       </div>
 
-      <div class="panel debug" *ngIf="showDebug">
-        <ng-container *ngIf="debug$ | async as debug">
-          <div class="debugHeader">
-            <div><b>Realtime Events</b></div>
+      @if (showDebug) {
+        <div class="panel debug">
+          @if (debug$ | async; as debug) {
+            <div class="debugHeader">
+              <div><b>Realtime Events</b></div>
 
-            <button class="btn small"
-                    (click)="copyDebug(debug)"
-                    [disabled]="!debug.length">
-              Copy
-            </button>
-          </div>
-
-          <div class="debugBody">
-            <div class="debugRow" *ngFor="let e of debug">
-              <span class="t">{{ e.ts | date:'HH:mm:ss.SSS' }}</span>
-              <span class="k">{{ e.type }}</span>
-              <span class="v">{{ e.summary }}</span>
+              <button class="btn small"
+                      (click)="copyDebug(debug)"
+                      [disabled]="!debug.length">
+                Copy
+              </button>
             </div>
 
-            <div class="empty" *ngIf="debug.length === 0">
-              No events yet.
+            <div class="debugBody">
+              @for (e of debug; track e.ts) {
+                <div class="debugRow">
+                  <span class="t">{{ e.ts | date:'HH:mm:ss.SSS' }}</span>
+                  <span class="k">{{ e.type }}</span>
+                  <span class="v">{{ e.summary }}</span>
+                </div>
+              }
+
+              @if (debug.length === 0) {
+                <div class="empty">
+                  No events yet.
+                </div>
+              }
             </div>
-          </div>
-        </ng-container>
-      </div>
+          }
+        </div>
+      }
 
       <div class="hint">
         Tip: enable <b>Line In</b> as an input device in Windows Sound settings to select it here.
@@ -185,23 +206,25 @@
       <div class="chatHeader">
         <h3>Conversation</h3>
         <div class="small">
-          Speak → pause → transcript appears → assistant responds
+          Speak > pause > transcript appears > assistant responds
         </div>
       </div>
 
       <div class="chatBody" #chatBody>
-        <ng-container *ngFor="let m of (messages$ | async)">
+        @for (m of (messages$ | async); track m.ts) {
           <div class="msg" [class.user]="m.role === 'user'" [class.assistant]="m.role === 'assistant'">
             <div class="meta">
               <span class="badge">{{ m.role === 'user' ? 'You' : 'Assistant' }}</span>
             </div>
             <div class="bubble">{{ m.text }}</div>
           </div>
-        </ng-container>
+        }
 
-        <div class="empty" *ngIf="(messages$ | async)?.length === 0">
-          Click <b>Start</b> and talk. Your transcript and the assistant reply will show here.
-        </div>
+        @if ((messages$ | async)?.length === 0) {
+          <div class="empty">
+            Click <b>Start</b> and talk. Your transcript and the assistant reply will show here.
+          </div>
+        }
       </div>
     </section>
   </main>

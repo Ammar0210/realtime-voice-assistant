@@ -1,22 +1,23 @@
-import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, OnDestroy, AfterViewInit, ElementRef, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RealtimeService } from './realtime.service';
-import { AfterViewInit, ElementRef, ViewChild } from '@angular/core';
 import { Subscription } from 'rxjs';
-import {DEFAULT_SYSTEM_PROMPT} from './constant';
+import { DEFAULT_SYSTEM_PROMPT } from './constant';
 
 @Component({
   selector: 'app-root',
-  standalone: true,
   imports: [CommonModule, FormsModule],
-  templateUrl: './app.html'
+  templateUrl: './app.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-
-export class App implements OnInit, AfterViewInit {
+export class App implements OnInit, AfterViewInit, OnDestroy {
 
   @ViewChild('chatBody') chatBody?: ElementRef<HTMLDivElement>;
   private sub?: Subscription;
+  private rt = inject(RealtimeService);
+  private cdr = inject(ChangeDetectorRef);
+
   devices: MediaDeviceInfo[] = [];
   resumeText = '';
   systemPrompt = DEFAULT_SYSTEM_PROMPT;
@@ -30,8 +31,7 @@ export class App implements OnInit, AfterViewInit {
   apiKey = '';
   apiKeyStatus: 'idle' | 'validating' | 'valid' | 'invalid' = 'idle';
   apiKeyError = '';
-
-  constructor(private rt: RealtimeService, private cdr: ChangeDetectorRef) {}
+  startError = '';
 
   get messages$() {
     return this.rt.messages$;
@@ -62,10 +62,9 @@ export class App implements OnInit, AfterViewInit {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Important: stop tracks so you don't keep the mic open
       stream.getTracks().forEach(t => t.stop());
     } catch {
-      // permission denied or blocked; still try enumerate (may be limited)
+      // permission denied or blocked
     }
 
     const all = await navigator.mediaDevices.enumerateDevices();
@@ -77,9 +76,7 @@ export class App implements OnInit, AfterViewInit {
 
     this.devicesLoading = false;
     this.devicesReady = true;
-
-    // Helps if anything runs outside Angular zone
-    this.cdr.detectChanges();
+    this.cdr.markForCheck();
   }
 
   buildPrompt(): string {
@@ -93,6 +90,7 @@ export class App implements OnInit, AfterViewInit {
     if (!this.apiKey.trim()) return;
     this.apiKeyStatus = 'validating';
     this.apiKeyError = '';
+    this.cdr.markForCheck();
     try {
       const result = await this.rt.validateKey(this.apiKey.trim());
       if (result.valid) {
@@ -105,17 +103,26 @@ export class App implements OnInit, AfterViewInit {
       this.apiKeyStatus = 'invalid';
       this.apiKeyError = 'Could not reach validation endpoint';
     }
-    this.cdr.detectChanges();
+    this.cdr.markForCheck();
   }
 
   async start() {
-    await this.rt.connect(this.selectedDeviceId, this.vad, this.buildPrompt(), this.apiKey);
-    this.connected = true;
+    this.startError = '';
+    this.cdr.markForCheck();
+    try {
+      await this.rt.connect(this.selectedDeviceId, this.vad, this.buildPrompt(), this.apiKey);
+      this.connected = true;
+    } catch (e) {
+      this.startError = e instanceof Error ? e.message : 'Failed to connect';
+      this.rt.disconnect();
+    }
+    this.cdr.markForCheck();
   }
 
   stop() {
     this.rt.disconnect();
     this.connected = false;
+    this.cdr.markForCheck();
   }
 
   get debug$() {
@@ -145,21 +152,15 @@ export class App implements OnInit, AfterViewInit {
 
   stateLabel(s: string | null | undefined) {
     switch (s) {
-      case 'connecting': return 'Connecting…';
+      case 'connecting': return 'Connecting...';
       case 'listening': return 'Listening';
-      case 'thinking': return 'Thinking…';
-      case 'responding': return 'Responding…';
-      case 'reconnecting': return 'Reconnecting…';
+      case 'thinking': return 'Thinking...';
+      case 'responding': return 'Responding...';
+      case 'reconnecting': return 'Reconnecting...';
       case 'error': return 'Error';
       case 'disconnected': return 'Disconnected';
       default: return 'Idle';
     }
-  }
-
-  private getMessagesSnapshot() {
-    // BehaviorSubject is private, so we pull from observable once using current value:
-    // easiest is to add a helper in service, but we can also subscribe once.
-    // Best: add a method in service. We'll do that.
   }
 
   exportJson() {
@@ -167,7 +168,7 @@ export class App implements OnInit, AfterViewInit {
       ts: m.ts,
       iso: new Date(m.ts).toISOString(),
       role: m.role,
-      text: m.text.replace(/^\[draft\]/, '') // strip draft tag just in case
+      text: m.text.replace(/^\[draft\]/, '')
     }));
 
     const blob = new Blob([JSON.stringify(msgs, null, 2)], { type: 'application/json' });

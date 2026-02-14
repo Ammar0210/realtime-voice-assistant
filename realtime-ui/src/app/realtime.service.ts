@@ -23,6 +23,7 @@ export type RtState =
 
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
+import { environment } from './environment';
 
 export type ChatMsg = {
   role: 'user' | 'assistant';
@@ -43,24 +44,26 @@ export class RealtimeService {
   private assistantDraft = '';
   private assistantInProgress = false;
   private lastDeviceId?: string;
+  private lastVad?: VadSettings;
+  private lastSystemPrompt?: string;
+  private lastApiKey?: string;
   private reconnecting = false;
-  private debugEnabled = true; // you can toggle from UI later
+  private debugEnabled = true;
   private debugSubject = new BehaviorSubject<DebugEvent[]>([]);
   debug$ = this.debugSubject.asObservable();
 
   private stateSubject = new BehaviorSubject<RtState>('idle');
   state$ = this.stateSubject.asObservable();
 
+  private readonly FETCH_TIMEOUT_MS = 15_000;
+
   private setState(s: RtState, note?: string) {
     this.stateSubject.next(s);
-    // optional debug log:
     this.pushDebug?.('state', `${s}${note ? ' | ' + note : ''}`);
   }
 
-  private readonly apiBase = 'https://realtime-voice-assistant-production.up.railway.app';
-
   async validateKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
-    const resp = await fetch(`${this.apiBase}/api/validate-key`, {
+    const resp = await this.fetchWithTimeout(`${environment.apiBase}/api/validate-key`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ apiKey })
@@ -71,6 +74,9 @@ export class RealtimeService {
   async connect(deviceId?: string, vad?: VadSettings, systemPrompt?: string, apiKey?: string) {
     this.setState('connecting');
     this.lastDeviceId = deviceId;
+    this.lastVad = vad;
+    this.lastSystemPrompt = systemPrompt;
+    this.lastApiKey = apiKey;
     this.pushDebug('client.connect', `deviceId=${deviceId || 'default'}`);
 
     // 1) Get ephemeral client secret from Spring Boot
@@ -84,11 +90,18 @@ export class RealtimeService {
       tokenBody['apiKey'] = apiKey.trim();
     }
 
-    const session = await fetch(`${this.apiBase}/api/realtime-token`, {
+    const tokenResp = await this.fetchWithTimeout(`${environment.apiBase}/api/realtime-token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(tokenBody)
-    }).then(r => r.json());
+    });
+
+    if (!tokenResp.ok) {
+      const err = await tokenResp.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(err.error || `Server error ${tokenResp.status}`);
+    }
+
+    const session = await tokenResp.json();
     this.pushDebug('token.ok');
 
     const clientSecret: string | undefined = session?.client_secret?.value;
@@ -171,7 +184,6 @@ export class RealtimeService {
       session: { instructions: systemPrompt || 'You are a helpful assistant.' }
     });
 
-    // ✅ Ready to listen
     this.setState('listening');
   }
 
@@ -203,7 +215,6 @@ export class RealtimeService {
   }
 
   private upsertDraft(role: ChatMsg['role'], text: string) {
-    this.setState('disconnected');
     const list = this.messagesSubject.value.slice();
     const last = list[list.length - 1];
 
@@ -233,7 +244,6 @@ export class RealtimeService {
     let evt: any;
     try { evt = JSON.parse(raw); } catch { return; }
 
-    // Small summaries for the events you care about
     switch (evt.type) {
       case 'input_audio_buffer.speech_started':
         this.pushDebug(evt.type);
@@ -260,24 +270,16 @@ export class RealtimeService {
         break;
 
       default:
-        // optionally log everything (can be noisy)
-        // this.pushDebug(evt.type);
         break;
     }
 
-    // ✅ NEW: Reset draft at the start of a new speech segment
-    // (This event is emitted when server VAD detects speech.)
     if (evt.type === 'input_audio_buffer.speech_started') {
       this.setState('listening');
-      // reset user draft for the new turn (from #1)
       this.userDraft = '';
       this.upsertDraft('user', '');
 
-      // ✅ BARGE-IN: cancel assistant if it's responding
       if (this.assistantInProgress) {
-        // optional UI polish:
         this.markAssistantInterrupted();
-
         this.sendEvent({ type: 'response.cancel' });
         this.assistantInProgress = false;
         this.assistantDraft = '';
@@ -292,14 +294,14 @@ export class RealtimeService {
     }
 
     if (evt.type === 'conversation.item.input_audio_transcription.completed') {
-      this.setState('thinking'); // we have the input, about to generate
+      this.setState('thinking');
       const finalUserText = (evt.transcript || this.userDraft || '').trim();
       this.finalizeDraft('user', finalUserText);
 
       this.userDraft = '';
       this.assistantDraft = '';
 
-      this.assistantInProgress = true; // ✅
+      this.assistantInProgress = true;
       this.sendEvent({ type: 'response.create', response: { modalities: ['text'] } });
       return;
     }
@@ -308,7 +310,7 @@ export class RealtimeService {
       if (this.stateSubject.value !== 'responding') {
         this.setState('responding');
       }
-      if (!this.assistantInProgress) return; // ✅ ignore late deltas
+      if (!this.assistantInProgress) return;
       this.assistantDraft += (evt.delta || '');
       this.upsertDraft('assistant', this.assistantDraft);
       return;
@@ -316,7 +318,7 @@ export class RealtimeService {
 
     if (evt.type === 'response.text.done') {
       this.finalizeDraft('assistant', this.assistantDraft);
-      this.assistantInProgress = false; // ✅
+      this.assistantInProgress = false;
       this.setState('listening');
       return;
     }
@@ -327,7 +329,7 @@ export class RealtimeService {
       const msg = evt.error?.message || JSON.stringify(evt.error || evt);
       this.messagesSubject.next([
         ...this.messagesSubject.value,
-        { role: 'assistant', text: `⚠️ Realtime error: ${msg}`, ts: Date.now() }
+        { role: 'assistant', text: `Realtime error: ${msg}`, ts: Date.now() }
       ]);
       return;
     }
@@ -356,7 +358,6 @@ export class RealtimeService {
   }
 
   private markAssistantInterrupted() {
-    // If last assistant message is a draft, finalize it with a note (optional)
     const list = this.messagesSubject.value.slice();
     const last = list[list.length - 1];
 
@@ -372,26 +373,23 @@ export class RealtimeService {
     this.reconnecting = true;
     this.setState('reconnecting');
 
-    // Add a small status message (optional)
     this.messagesSubject.next([
       ...this.messagesSubject.value,
-      { role: 'assistant', text: '⚠️ Connection lost… reconnecting.', ts: Date.now() }
+      { role: 'assistant', text: 'Connection lost... reconnecting.', ts: Date.now() }
     ]);
 
-    // backoff retries
     const delays = [250, 500, 1000, 2000, 4000];
 
     for (const ms of delays) {
       try {
-        // Close old connections but keep messages
         this.disconnect({ clearMessages: false });
 
         await new Promise(r => setTimeout(r, ms));
-        await this.connect(this.lastDeviceId);
+        await this.connect(this.lastDeviceId, this.lastVad, this.lastSystemPrompt, this.lastApiKey);
 
         this.messagesSubject.next([
           ...this.messagesSubject.value,
-          { role: 'assistant', text: '✅ Reconnected.', ts: Date.now() }
+          { role: 'assistant', text: 'Reconnected.', ts: Date.now() }
         ]);
 
         this.reconnecting = false;
@@ -403,11 +401,26 @@ export class RealtimeService {
 
     this.messagesSubject.next([
       ...this.messagesSubject.value,
-      { role: 'assistant', text: '❌ Could not reconnect. Please click Start again.', ts: Date.now() }
+      { role: 'assistant', text: 'Could not reconnect. Please click Start again.', ts: Date.now() }
     ]);
 
-    this.setState('listening');
+    this.setState('disconnected');
     this.reconnecting = false;
+  }
+
+  private async fetchWithTimeout(url: string, options: RequestInit): Promise<Response> {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), this.FETCH_TIMEOUT_MS);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        throw new Error('Request timed out');
+      }
+      throw e;
+    } finally {
+      clearTimeout(id);
+    }
   }
 
   private pushDebug(type: string, summary?: string, raw?: any) {
@@ -416,7 +429,6 @@ export class RealtimeService {
     const list = this.debugSubject.value.slice();
     list.push({ ts: Date.now(), type, summary, raw });
 
-    // keep last 200
     const trimmed = list.length > 200 ? list.slice(list.length - 200) : list;
     this.debugSubject.next(trimmed);
   }
