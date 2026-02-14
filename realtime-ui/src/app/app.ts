@@ -26,7 +26,9 @@ export class App implements OnInit, AfterViewInit, OnDestroy {
   devicesLoading = false;
   devicesReady = false;
   showDebug = false;
+  showVad = false;
   debugEnabled = true;
+  starting = false;
 
   apiKey = '';
   apiKeyStatus: 'idle' | 'validating' | 'valid' | 'invalid' = 'idle';
@@ -108,6 +110,7 @@ export class App implements OnInit, AfterViewInit, OnDestroy {
 
   async start() {
     this.startError = '';
+    this.starting = true;
     this.cdr.markForCheck();
     try {
       await this.rt.connect(this.selectedDeviceId, this.vad, this.buildPrompt(), this.apiKey);
@@ -116,6 +119,7 @@ export class App implements OnInit, AfterViewInit, OnDestroy {
       this.startError = e instanceof Error ? e.message : 'Failed to connect';
       this.rt.disconnect();
     }
+    this.starting = false;
     this.cdr.markForCheck();
   }
 
